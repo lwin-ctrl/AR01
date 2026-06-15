@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>iPad AR Real Scale Fix</title>
+
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #000; font-family: -apple-system, sans-serif; }
+
+    #startButton {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: #111827; color: #fff;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; text-align: center; padding: 20px; box-sizing: border-box;
+    }
+    .btn {
+      background: #2563eb; color: white; border: none; padding: 16px 32px;
+      font-size: 18px; font-weight: bold; border-radius: 12px; margin-top: 20px; cursor: pointer;
+    }
+    
+    #hint {
+      position: fixed; bottom: 40px; width: 100%; text-align: center;
+      color: white; font-size: 16px; font-weight: bold;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 998; display: none;
+    }
+
+    #debugBox {
+      position: fixed; top: 10px; left: 10px; width: calc(100% - 20px);
+      max-height: 120px; background: rgba(0,0,0,0.85); color: #ff4545;
+      font-family: monospace; font-size: 11px; padding: 10px;
+      border-radius: 6px; overflow-y: auto; z-index: 10000; display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="debugBox"></div>
+
+  <div id="startButton">
+    <h2>AR Target Scanner</h2>
+    <p style="opacity: 0.7; max-width: 300px; font-size: 14px;">
+      START ကိုနှိပ်ပြီး "Allow" ပေးပါ။ ထို့နောက် သင့်၏ Target ပုံကို စကင်ဖတ်ပါ။
+    </p>
+    <button class="btn" id="clickToStart">START SCANNING</button>
+  </div>
+
+  <div id="hint">Scanning for Target Image...</div>
+
+  <a-scene
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: yes; uiScanning: no;"
+    embedded
+    color-space="sRGB"
+    renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true;"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false">
+
+    <a-assets>
+      <a-asset-item id="myModel" src="./my-model.glb"></a-asset-item>
+    </a-assets>
+
+    <a-entity light="type: ambient; intensity: 2.2;"></a-entity>
+    <a-entity light="type: directional; intensity: 1.5;" position="1 4 3"></a-entity>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <a-entity mindar-image-target="targetIndex: 0" id="arTarget">
+      
+      <a-gltf-model
+        src="#myModel"
+        position="0 0 0.001"       
+        rotation="90 0 0"       
+        scale="1 1 1"
+        material="side: double;">
+      </a-gltf-model>
+      
+    </a-entity>
+
+  </a-scene>
+
+  <script>
+    const debugBox = document.getElementById('debugBox');
+    const startButton = document.getElementById('startButton');
+    const clickToStart = document.getElementById('clickToStart');
+    const hintText = document.getElementById('hint');
+    const scene = document.querySelector('a-scene');
+
+    window.onerror = function(msg, url, line) {
+      debugBox.style.display = 'block';
+      debugBox.innerHTML += `<div>Error: ${msg} (Line ${line})</div>`;
+      return false;
+    };
+
+    clickToStart.addEventListener('click', async () => {
+      startButton.style.display = 'none';
+      hintText.style.display = 'block';
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        stream.getTracks().forEach(track => track.stop());
+
+        if (scene.hasLoaded) {
+          startARSystem();
+        } else {
+          scene.addEventListener('loaded', startARSystem);
+        }
+      } catch (err) {
+        debugBox.style.display = 'block';
+        debugBox.innerHTML += `<div>Camera Blocked: ${err.message}</div>`;
+      }
+    });
+
+    function startARSystem() {
+      const arSystem = scene.systems["mindar-image-system"];
+      if (arSystem) {
+        arSystem.start();
+      }
+    }
+
+    const targetEntity = document.getElementById('arTarget');
+    if (targetEntity) {
+      targetEntity.addEventListener('targetFound', () => { hintText.style.display = 'none'; });
+      targetEntity.addEventListener('targetLost', () => { hintText.style.display = 'block'; });
+    }
+  </script>
+
+</body>
+</html>
